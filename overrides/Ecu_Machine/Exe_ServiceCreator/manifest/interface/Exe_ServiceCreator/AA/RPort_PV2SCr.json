@@ -1,0 +1,27 @@
+{
+    "generation-by" : "PARA, PopcornSAR",
+    "autosar-version" : "R20-11",
+    "manifest-type" : "service-instance-manifest",
+    "port-type" : "rport",
+    "instance-specifier" : "Exe_ServiceCreator/AA/RPort_PV2SCr",
+    "service-protocol" : "someip",
+    "service-name" : "SCr_SI_planningvalidator",
+    "service-id" : "2317",
+    "instance-id" : "ANY",
+    "major-version" : "41",
+    "minor-version" : "ANY",
+    "client-id" : "17427",
+    "events" : [
+        {
+            "name" : "planning_scenarioplanning_trajectory",
+            "event-id" : "12506",
+            "transport" : "udp",
+            "max-segment-len" : "0",
+            "separation-time" : "0.0"
+        }
+    ],
+    "methods" : [
+    ],
+    "fields" : [
+    ]
+}

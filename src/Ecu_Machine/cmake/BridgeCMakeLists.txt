@@ -1,0 +1,9 @@
+cmake_minimum_required(VERSION 3.16)
+project(Ecu_Machine)
+
+include(${CMAKE_SOURCE_DIR}/cmake/ParaSdk.cmake)
+
+add_subdirectory(CM)
+add_subdirectory(EM)
+add_subdirectory(Exe_ServiceCreator)
+add_subdirectory(OTAClient)

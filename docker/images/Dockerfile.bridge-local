@@ -1,0 +1,56 @@
+# Build the dedicated Service Creator from upstream oss-ap and Decision AP overlays.
+FROM ros:humble-ros-base-jammy AS build
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build python3-colcon-common-extensions libboost-dev \
+    ros-humble-rmw-cyclonedds-cpp ros-humble-geographic-msgs \
+    ros-humble-unique-identifier-msgs ros-humble-shape-msgs \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=para_sdk / /opt/para-sdk
+COPY --from=bridge_msgs / /workspace/src/msgs
+COPY --from=oss_ap / /workspace/src/Ecu_Machine
+COPY --from=decision_generated /Exe_ServiceCreator/include/ /workspace/src/Ecu_Machine/Exe_ServiceCreator/include/
+RUN rm -rf /workspace/src/Ecu_Machine/CM/manifest/com/someip \
+    /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
+COPY overrides/Ecu_Machine/CM/bridge-manifest/com /workspace/src/Ecu_Machine/CM/manifest/com
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/manifest/interface /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
+COPY src/Ecu_Machine/cmake/BridgeCMakeLists.txt /workspace/src/Ecu_Machine/CMakeLists.txt
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/src /workspace/src/Ecu_Machine/Exe_ServiceCreator/src
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/include/servicecreator /workspace/src/Ecu_Machine/Exe_ServiceCreator/include/servicecreator
+COPY src/Ecu_Machine/cmake/ros-library-probe.cmake /opt/ros-library-probe.cmake
+WORKDIR /workspace
+RUN . /opt/ros/humble/setup.sh \
+    && colcon build --merge-install \
+      --packages-up-to ecu_machine autoware_vehicle_msgs \
+        autoware_internal_msgs tier4_metric_msgs \
+      --packages-skip ecu_machine \
+      --build-base /workspace/build --install-base /opt/ap \
+      --parallel-workers 4 \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release -DPARA_SDK=/opt/para-sdk \
+        -DCMAKE_PROJECT_INCLUDE=/opt/ros-library-probe.cmake
+COPY overrides/Ecu_Machine/OTAClient/manifest/exec/OTAClient.json /workspace/src/Ecu_Machine/OTAClient/manifest/exec/OTAClient.json
+RUN . /opt/ros/humble/setup.sh \
+    && . /opt/ap/setup.sh \
+    && colcon build --merge-install --packages-select ecu_machine \
+      --build-base /workspace/build --install-base /opt/ap \
+      --parallel-workers 4 \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release -DPARA_SDK=/opt/para-sdk \
+        -DCMAKE_PROJECT_INCLUDE=/opt/ros-library-probe.cmake
+RUN cmake --install /workspace/build/ecu_machine --component Standalone \
+    && test -x /opt/ap/opt/Exe_ServiceCreator/bin/Exe_ServiceCreator \
+    && test -x /opt/ap/opt/OTAClient/bin/OTAClient \
+    && test "$(find /opt/ap/opt -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 2 \
+    && test "$(find /opt/ap/etc/com/someip -name '*.json' -type f | wc -l)" -eq 9
+
+FROM ros:humble-ros-core-jammy AS runtime
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-rmw-cyclonedds-cpp ros-humble-geographic-msgs iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+ARG PARA_SDK_VERSION=unknown
+LABEL para.sdk.version="${PARA_SDK_VERSION}"
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+COPY --from=build /opt/ap /opt/ap
+COPY docker/entrypoint/ap_entrypoint.sh /oss/entrypoint.sh
+RUN mkdir -p /opt/ap/var/logs
+ENTRYPOINT ["/oss/entrypoint.sh"]

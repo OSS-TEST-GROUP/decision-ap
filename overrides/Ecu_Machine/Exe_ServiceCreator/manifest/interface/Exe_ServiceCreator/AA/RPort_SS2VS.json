@@ -1,0 +1,25 @@
+{
+    "generation-by": "PARA, PopcornSAR",
+    "autosar-version": "R20-11",
+    "manifest-type": "service-instance-manifest",
+    "port-type": "rport",
+    "instance-specifier": "Exe_ServiceCreator/AA/RPort_SS2VS",
+    "service-protocol": "someip",
+    "service-name": "VS_SI_scenarioselector",
+    "service-id": "2516",
+    "instance-id": "ANY",
+    "major-version": "41",
+    "minor-version": "ANY",
+    "client-id": "17428",
+    "events": [
+        {
+            "name": "planning_scenarioplanning_scenarioselector_trajectory",
+            "event-id": "12908",
+            "transport": "udp",
+            "max-segment-len": "0",
+            "separation-time": "0.0"
+        }
+    ],
+    "methods": [],
+    "fields": []
+}

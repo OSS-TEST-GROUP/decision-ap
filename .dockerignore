@@ -1,0 +1,13 @@
+.git
+build
+build-*
+output
+sdk
+external/msgs
+overrides/generated/decision-ap-generated
+map
+lib/proxsuite-devel/*
+!lib/proxsuite-devel/include
+!lib/proxsuite-devel/package.xml
+**/__pycache__
+**/*.pyc

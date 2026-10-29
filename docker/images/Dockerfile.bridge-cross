@@ -1,0 +1,86 @@
+# Compile the dedicated Service Creator on x86_64 against an arm64 sysroot.
+ARG BUILDPLATFORM
+
+FROM ros:humble-ros-base-jammy AS target-deps
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build python3-colcon-common-extensions libboost-dev \
+    ros-humble-rmw-cyclonedds-cpp ros-humble-geographic-msgs \
+    ros-humble-unique-identifier-msgs ros-humble-shape-msgs \
+    && rm -rf /var/lib/apt/lists/*
+
+FROM --platform=$BUILDPLATFORM ros:humble-ros-base-jammy AS build
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential cmake ninja-build python3-colcon-common-extensions \
+    gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libboost-dev \
+    ros-humble-rmw-cyclonedds-cpp ros-humble-geographic-msgs \
+    ros-humble-unique-identifier-msgs ros-humble-shape-msgs \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=target-deps /opt/ros /sysroot/opt/ros
+COPY --from=target-deps /usr/lib /sysroot/usr/lib
+COPY --from=target-deps /usr/include /sysroot/usr/include
+COPY --from=target-deps /lib /sysroot/lib
+COPY --from=para_sdk / /opt/para-sdk
+COPY --from=host_sdk / /opt/para-sdk-host
+COPY --from=bridge_msgs / /workspace/src/msgs
+COPY --from=oss_ap / /workspace/src/Ecu_Machine
+COPY --from=decision_generated /Exe_ServiceCreator/include/ /workspace/src/Ecu_Machine/Exe_ServiceCreator/include/
+RUN rm -rf /workspace/src/Ecu_Machine/CM/manifest/com/someip \
+    /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
+COPY overrides/Ecu_Machine/CM/bridge-manifest/com /workspace/src/Ecu_Machine/CM/manifest/com
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/manifest/interface /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
+COPY src/Ecu_Machine/cmake/BridgeCMakeLists.txt /workspace/src/Ecu_Machine/CMakeLists.txt
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/src /workspace/src/Ecu_Machine/Exe_ServiceCreator/src
+COPY overrides/Ecu_Machine/Exe_ServiceCreator/include/servicecreator /workspace/src/Ecu_Machine/Exe_ServiceCreator/include/servicecreator
+COPY src/Ecu_Machine/cmake/bridge-toolchain-aarch64.cmake /opt/bridge-toolchain-aarch64.cmake
+RUN grep -rl '/usr/lib/aarch64-linux-gnu/' /sysroot/opt/ros/humble/share --include='*.cmake' \
+      | xargs -r sed -i 's#\([";]\)/usr/lib/aarch64-linux-gnu/#\1/sysroot/usr/lib/aarch64-linux-gnu/#g'
+ENV PARA_SDK=/opt/para-sdk
+ENV CMAKE_PREFIX_PATH=/sysroot/opt/ros/humble
+ENV AMENT_PREFIX_PATH=/sysroot/opt/ros/humble
+ENV MAKEFLAGS="-j4 -l4"
+WORKDIR /workspace
+RUN . /opt/ros/humble/setup.sh \
+    && export CMAKE_PREFIX_PATH=/sysroot/opt/ros/humble \
+    && export AMENT_PREFIX_PATH=/sysroot/opt/ros/humble \
+    && colcon build --merge-install \
+      --packages-up-to ecu_machine autoware_vehicle_msgs \
+        autoware_internal_msgs tier4_metric_msgs \
+      --packages-skip ecu_machine \
+      --build-base /workspace/build --install-base /opt/ap \
+      --parallel-workers 4 \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release -DPARA_SDK=/opt/para-sdk \
+        -DCMAKE_TOOLCHAIN_FILE=/opt/bridge-toolchain-aarch64.cmake \
+        -D_idlc_executable=/opt/para-sdk-host/share/cyclonedds/bin/idlc
+COPY overrides/Ecu_Machine/OTAClient/manifest/exec/OTAClient.json /workspace/src/Ecu_Machine/OTAClient/manifest/exec/OTAClient.json
+RUN . /opt/ros/humble/setup.sh \
+    && . /opt/ap/setup.sh \
+    && export CMAKE_PREFIX_PATH=/opt/ap:/sysroot/opt/ros/humble \
+    && export AMENT_PREFIX_PATH=/opt/ap:/sysroot/opt/ros/humble \
+    && colcon build --merge-install --packages-select ecu_machine \
+      --build-base /workspace/build --install-base /opt/ap \
+      --parallel-workers 4 \
+      --cmake-args -DCMAKE_BUILD_TYPE=Release -DPARA_SDK=/opt/para-sdk \
+        -DCMAKE_TOOLCHAIN_FILE=/opt/bridge-toolchain-aarch64.cmake \
+        -D_idlc_executable=/opt/para-sdk-host/share/cyclonedds/bin/idlc \
+        -DOTAC_IDLC=/opt/para-sdk-host/share/cyclonedds/bin/idlc \
+        -DOTAC_BACKEND=/opt/para-sdk-host/share/cyclonedds/lib/libcycloneddsidlcxx.so
+RUN cmake --install /workspace/build/ecu_machine --component Standalone \
+    && test -x /opt/ap/opt/Exe_ServiceCreator/bin/Exe_ServiceCreator \
+    && test -x /opt/ap/opt/OTAClient/bin/OTAClient \
+    && test "$(find /opt/ap/opt -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 2 \
+    && test "$(find /opt/ap/etc/com/someip -name '*.json' -type f | wc -l)" -eq 9
+
+FROM ros:humble-ros-core-jammy AS runtime
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ros-humble-rmw-cyclonedds-cpp ros-humble-geographic-msgs iproute2 \
+    && rm -rf /var/lib/apt/lists/*
+ARG PARA_SDK_VERSION=unknown
+LABEL para.sdk.version="${PARA_SDK_VERSION}" bridge.build.method="sysroot-cross"
+ENV RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+COPY --from=build /opt/ap /opt/ap
+COPY docker/entrypoint/ap_entrypoint.sh /oss/entrypoint.sh
+RUN mkdir -p /opt/ap/var/logs
+ENTRYPOINT ["/oss/entrypoint.sh"]
