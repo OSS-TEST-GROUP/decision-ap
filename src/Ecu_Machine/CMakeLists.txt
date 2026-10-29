@@ -5,12 +5,15 @@ set(REPO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../..")
 set(DECISION_APP "${CMAKE_CURRENT_SOURCE_DIR}/DecisionAP")
 set(CM_APP "${CMAKE_CURRENT_SOURCE_DIR}/CM")
 set(EM_APP "${CMAKE_CURRENT_SOURCE_DIR}/EM")
+set(OSS_AP_DEFAULT "${REPO_ROOT}/../oss-ap")
+set(OSS_AP_SOURCE "${OSS_AP_DEFAULT}" CACHE PATH
+    "Checkout of the upstream oss-ap source")
 
 if(NOT PARA_SDK AND DEFINED ENV{PARA_SDK})
   set(PARA_SDK "$ENV{PARA_SDK}")
 endif()
 if(NOT PARA_SDK)
-  set(PARA_SDK "${REPO_ROOT}/sdk/${CMAKE_SYSTEM_PROCESSOR}")
+  set(PARA_SDK "${OSS_AP_SOURCE}/sdk/${CMAKE_SYSTEM_PROCESSOR}")
 endif()
 if(NOT EXISTS "${PARA_SDK}/share/cmake/Modules/PARA/Para.cmake")
   message(FATAL_ERROR "PARA SDK missing from ${PARA_SDK}; set PARA_SDK to override")
@@ -19,9 +22,6 @@ endif()
 list(APPEND CMAKE_MODULE_PATH "${PARA_SDK}/share/cmake/Modules")
 include(PARA/Para)
 
-set(OSS_AP_DEFAULT "${REPO_ROOT}/../oss-ap")
-set(OSS_AP_SOURCE "${OSS_AP_DEFAULT}" CACHE PATH
-    "Checkout of the upstream oss-ap source")
 set(OSS_ECU "${OSS_AP_SOURCE}/src/Ecu_Machine")
 set(DECISION_GENERATED "${REPO_ROOT}/overrides/generated/decision-ap-generated" CACHE PATH
     "Local generated ARA headers for Decision AP services")

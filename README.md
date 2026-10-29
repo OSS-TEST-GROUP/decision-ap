@@ -14,15 +14,16 @@ x86_64 이미지는 `./docker/build-x86.sh`를 사용한다. 각 빌드 스크�
 
 | 단계 | 빌드 스크립트가 자동으로 수행하는 준비 |
 | --- | --- |
-| 외부 소스 | `../oss-ap/`를 복제하고 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춤. 기존 작업 트리에 변경이 있으면 중단 |
-| SDK | `oss-ap/sdk/<아키텍처>/`에서 `sdk/<아키텍처>/`로 없는 SDK를 복사. x86_64 PC의 ARM64 크로스 빌드는 호스트 SDK도 준비 |
-| 생성 ARA 헤더 | 생성본의 `Exe_ServiceCreator/include/`와 필요한 의존 타입을 `overrides/generated/decision-ap-generated/`로 복사하고 검증 |
-| ROS 메시지 | `external/msgs/`를 `oss-ap.repos`로 가져옴. `ROS_MSGS_SOURCE`를 지정하면 기존 로컬 저장소에서 복사 |
-| 오버레이 | 파일 복사는 이미지 빌드 시 Dockerfile이 수행. 원본 `oss-ap` 소스 파일은 수정하지 않음 |
+| 호스트 | Linux x86_64 PC 또는 ARM64 보드, Docker 데몬과 Docker Buildx |
+| PARA SDK | 대상 아키텍처의 `sdk/x86_64/` 또는 `sdk/aarch64/` |
+| 생성 ARA 헤더 | `overrides/generated/decision-ap-generated/` |
+| 외부 Adaptive 소스 | 기본 위치 `../oss-ap/` |
+| ROS 2 메시지 소스 | `external/msgs/`; 없으면 빌드 스크립트가 `oss-ap.repos`로 가져옴 (`vcs` 필요) |
+| 샘플 지도 | `map/sample-map-decision/`에 `lanelet2_map.osm`, `pointcloud_map.pcd`, `map_config.yaml`, `map_projector_info.yaml` |
 
-기존 로컬 SDK·생성 헤더·메시지 저장소는 덮어쓰지 않는다. 준비된 입력은 다시 검사한다. SDK, 로컬 생성 헤더, 외부 ROS 메시지는 이 저장소의 Git에 포함되지 않는다.
+PARA SDK, 생성 ARA 헤더, 지도, 외부 ROS 2 메시지는 Git에 포함되지 않는다. `oss-ap`가 없으면 빌드 스크립트가 기본 SSH 주소에서 복제하므로 접근 권한이 필요하다. 빌드 스크립트는 `oss-ap`를 고정 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 기존 작업 트리에 변경이 있으면 자동 갱신이 중단된다.
 
-**고정된 `oss-ap`에는 Decision AP 전용 네 서비스의 생성 헤더가 없다.** 최초 준비 시 기존 개발 환경의 `Ecu_Machine` 디렉터리를 지정한다.
+입력 위치를 바꾸려면 `PARA_SDK`, `DECISION_GENERATED`, `OSS_AP_SOURCE`를 지정한다. ROS 2 메시지는 준비 스크립트가 확인하는 `external/msgs/`에 둔다. 인터넷 없이 이미 준비한 소스로 빌드하려면 명령 앞에 `OSS_AP_UPDATE=0`을 붙인다. 이 경우 `oss-ap`와 `external/msgs/`를 먼저 준비해야 한다.
 
 ```sh
 DECISION_GENERATED_SOURCE=/기존/개발환경/oss-ap/src/Ecu_Machine \

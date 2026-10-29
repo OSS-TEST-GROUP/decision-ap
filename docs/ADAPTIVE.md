@@ -2,7 +2,7 @@
 
 릴리즈 이름은 Decision AP다. 계획 실행 파일은 `ap-decision`이고 설치 경로는 `/opt/ap/opt/DecisionAP/bin/ap-decision`이다. AUTOSAR 앱 식별자는 `DecisionAP`다.
 
-이 문서는 PopcornSAR PARA R20-11 기반 Adaptive AUTOSAR 앱의 구성, 인터페이스, 검증 기록을 정리한다. 사용자 빌드·실행·RViz 절차는 [루트 README](../README.md)에 있다. 계획 앱은 `src/Ecu_Machine/`, 외부 `oss-ap`에 덮어쓰는 수정 파일은 `overrides/Ecu_Machine/`, Dockerfile과 실행 스크립트는 `docker/`에 있다. 빌드에 필요한 SDK는 `sdk/`, 기본 생성 파일과 OTAClient 소스는 형제 저장소 `../oss-ap`, 전용 생성 헤더는 `overrides/generated/`, ROS 메시지는 `external/msgs`에 있다. 원본 `oss-ap` 저장소는 수정하지 않는다.
+이 문서는 PopcornSAR PARA R20-11 기반 Adaptive AUTOSAR 앱의 구성, 인터페이스, 검증 기록을 정리한다. 사용자 빌드·실행·RViz 절차는 [루트 README](../README.md)에 있다. 계획 앱은 `src/Ecu_Machine/`, 외부 `oss-ap`에 덮어쓰는 수정 파일은 `overrides/Ecu_Machine/`, Dockerfile과 실행 스크립트는 `docker/`에 있다. 빌드에 필요한 SDK와 기본 생성 파일·OTAClient 소스는 형제 저장소 `../oss-ap`, Decision AP 전용 생성 헤더는 `overrides/generated/`, ROS 메시지는 `external/msgs`에 있다. 원본 `oss-ap` 저장소는 수정하지 않는다.
 
 ## 현재 인터페이스
 
@@ -66,7 +66,7 @@
 | 파일 | 역할 |
 | --- | --- |
 | `src/Ecu_Machine/CMakeLists.txt` | 생성 ARA 포트와 CM 설정을 빌드 디렉터리에 준비하고 DecisionAP를 빌드 |
-| `sdk/`, `../oss-ap`, `overrides/generated/`, `external/msgs` | PARA SDK, 외부 기본 ARA 파일, 전용 생성 헤더, ROS 메시지 |
+| `../oss-ap/sdk/`, `../oss-ap/src/`, `overrides/generated/`, `external/msgs` | PARA SDK, 외부 기본 ARA 파일, 전용 생성 헤더, ROS 메시지 |
 | `src/Ecu_Machine/DecisionAP/src/` | `ara::com` 입력 구독, route Method 제공, 검증된 궤적 송신, EM 상태 보고 |
 | `src/Ecu_Machine/{DecisionAP,EM,CM}/manifest/` | 앱 실행·EM·머신·기능 그룹·SOME/IP 매니페스트 |
 | `docker/images/Dockerfile.planning`, `docker/build/build_planning.sh` | 통합 이미지에 복사할 계획 앱 산출물 빌드 |

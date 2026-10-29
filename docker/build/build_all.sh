@@ -5,8 +5,8 @@ repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 arch="${ARCH:-$(uname -m)}"
 host_arch="$(uname -m)"
 case "${arch}" in
-  x86_64) platform=linux/amd64; suffix=""; build_entry=build-x86.sh ;;
-  aarch64) platform=linux/arm64; suffix=-aarch64; build_entry=build-arm64.sh ;;
+  x86_64) platform=linux/amd64; docker_arch=amd64; suffix=""; build_entry=build-x86.sh ;;
+  aarch64) platform=linux/arm64; docker_arch=arm64; suffix=-aarch64; build_entry=build-arm64.sh ;;
   *) echo "Unsupported architecture: ${arch}" >&2; exit 1 ;;
 esac
 fail() { echo "Error: $*" >&2; exit 1; }
@@ -75,10 +75,13 @@ if [[ "${mode}" == native ]]; then
   [[ -x "${sdk}/share/cyclonedds/bin/idlc" ]] || fail "SDK idlc missing or not executable: ${sdk}/share/cyclonedds/bin/idlc. Run: env -u PARA_SDK ./docker/${build_entry}"
 fi
 if [[ "${mode}" == cross ]]; then
-  host_sdk="${PARA_SDK_HOST:-${repo_dir}/sdk/x86_64}"
+  host_sdk="${PARA_SDK_HOST:-${HOST_PARA_SDK:-${repo_dir}/sdk/x86_64}}"
   prepare_sdk x86_64 "${host_sdk}"
   [[ -x "${host_sdk}/share/cyclonedds/bin/idlc" ]] || fail "Host SDK idlc missing: ${host_sdk}"
   [[ -f "${host_sdk}/share/cyclonedds/lib/libcycloneddsidlcxx.so" ]] || fail "Host SDK CycloneDDS backend missing: ${host_sdk}"
+  if [[ -f "${host_sdk}/VERSION" && -f "${sdk}/VERSION" ]]; then
+    [[ "$(cat "${host_sdk}/VERSION")" == "$(cat "${sdk}/VERSION")" ]] || fail "Host and target PARA SDK versions must match"
+  fi
 fi
 
 python3 "${repo_dir}/docker/tools/prepare-generated.py" \
@@ -114,7 +117,7 @@ echo "Prepared ${arch} inputs. Starting Docker image builds."
 [[ -f "${sdk}/share/cmake/Modules/PARA/Para.cmake" ]] || fail "PARA SDK missing: ${sdk}; set PARA_SDK"
 sdk="$(absolute_dir "${sdk}")"
 if [[ "${mode}" == cross ]]; then
-  host_sdk="${PARA_SDK_HOST:-${repo_dir}/sdk/x86_64}"
+  host_sdk="${PARA_SDK_HOST:-${HOST_PARA_SDK:-${repo_dir}/sdk/x86_64}}"
   [[ -x "${host_sdk}/share/cyclonedds/bin/idlc" ]] || fail "Host SDK idlc missing: ${host_sdk}; set PARA_SDK_HOST"
   [[ -f "${host_sdk}/share/cyclonedds/lib/libcycloneddsidlcxx.so" ]] || fail "Host SDK CycloneDDS backend missing: ${host_sdk}"
   host_sdk="$(absolute_dir "${host_sdk}")"
@@ -127,9 +130,15 @@ oss_ap="$(absolute_dir "${oss_ap}")"
 generated="$(absolute_dir "${generated}")"
 
 # Both component images use the same target SDK and carry its identity label.
-sdk_version="${PARA_SDK_VERSION:-$(sha256sum "${sdk}/share/cmake/Modules/PARA/Para.cmake" | cut -d ' ' -f 1)}"
+if [[ -n "${PARA_SDK_VERSION:-}" ]]; then
+  sdk_version="${PARA_SDK_VERSION}"
+elif [[ -f "${sdk}/VERSION" ]]; then
+  sdk_version="$(cat "${sdk}/VERSION")"
+else
+  sdk_version="$(sha256sum "${sdk}/share/cmake/Modules/PARA/Para.cmake" | cut -d ' ' -f 1)"
+fi
 bridge_image="${BRIDGE_IMAGE:-decision-ap-bridge:local${suffix}}"
-planning_image="${PLANNING_IMAGE:-decision-ap-planning:local${suffix}}"
+planning_image="${PLANNING_IMAGE:-${IMAGE_TAG:-decision-ap-planning:local${suffix}}}"
 integrated_image="${INTEGRATED_IMAGE:-decision-ap-integrated:local${suffix}}"
 common=(--builder default --platform "${platform}" --load --build-arg "PARA_SDK_VERSION=${sdk_version}"
   --build-context "para_sdk=${sdk}" --build-context "oss_ap=${oss_ap}/src/Ecu_Machine"
@@ -146,6 +155,8 @@ docker buildx build "${common[@]}" "${bridge_args[@]}" \
 docker buildx build "${common[@]}" \
   -f "${repo_dir}/docker/images/Dockerfile.planning" -t "${planning_image}" "${repo_dir}"
 for image in "${bridge_image}" "${planning_image}"; do
+  image_arch="$(docker image inspect --format '{{.Architecture}}' "${image}")"
+  [[ "${image_arch}" == "${docker_arch}" ]] || fail "Image architecture mismatch: ${image} is ${image_arch}, expected ${docker_arch}"
   version="$(docker image inspect --format '{{index .Config.Labels "para.sdk.version"}}' "${image}")"
   [[ "${version}" == "${sdk_version}" ]] || fail "PARA SDK label mismatch in ${image}"
 done
