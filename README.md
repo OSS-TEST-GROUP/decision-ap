@@ -7,15 +7,15 @@ Adaptive AUTOSAR 기반 Autoware Planning을 위한 Decision AP 파티션이다.
 | 항목 | 필요한 것 |
 | --- | --- |
 | 호스트 | Linux x86_64 PC 또는 ARM64 보드, Docker 데몬과 Docker Buildx |
-| PARA SDK | 대상 아키텍처의 `sdk/x86_64/` 또는 `sdk/aarch64/` |
-| 생성 ARA 헤더 | `overrides/generated/decision-ap-generated/` |
+| PARA SDK | 기본 위치 `../oss-ap/sdk/x86_64/` 또는 `../oss-ap/sdk/aarch64/` |
+| 생성 ARA 헤더 | `../oss-ap/src/Ecu_Machine/`의 기본 생성물과 `overrides/generated/decision-ap-generated/`의 Decision AP 전용 생성물 |
 | 외부 Adaptive 소스 | 기본 위치 `../oss-ap/` |
 | ROS 2 메시지 소스 | `external/msgs/`; 없으면 빌드 스크립트가 `oss-ap.repos`로 가져옴 (`vcs` 필요) |
-| 샘플 지도 | `map/sample-map-decision/`에 `lanelet2_map.osm`, `pointcloud_map.pcd`, `map_config.yaml`, `map_projector_info.yaml` |
+| 샘플 지도 | 이 저장소의 `map/sample-map-decision/`에 포함 |
 
-PARA SDK, 생성 ARA 헤더, 지도, 외부 ROS 2 메시지는 Git에 포함되지 않는다. `oss-ap`가 없으면 빌드 스크립트가 기본 SSH 주소에서 복제하므로 접근 권한이 필요하다. 빌드 스크립트는 `oss-ap`를 고정 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 기존 작업 트리에 변경이 있으면 자동 갱신이 중단된다.
+샘플 지도는 이 저장소에 포함된다. PARA SDK와 Decision AP 전용 생성 ARA 헤더는 Git에 포함되지 않는다. `../oss-ap`에는 기존 ARA 생성물이 있지만, 새 출력 서비스에 필요한 `AA2SCrMetrics`·`AA2SCrTurn` 등의 전용 생성물은 없다. 따라서 전용 생성 헤더는 별도로 준비해야 한다. `oss-ap`가 없으면 빌드 스크립트가 기본 SSH 주소에서 복제하므로 접근 권한이 필요하다. 빌드 스크립트는 `oss-ap`를 고정 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 기존 작업 트리에 변경이 있으면 자동 갱신이 중단된다. `oss-ap`를 새로 복제해도 Git에서 제외된 PARA SDK는 함께 내려받아지지 않는다.
 
-입력 위치를 바꾸려면 `PARA_SDK`, `DECISION_GENERATED`, `OSS_AP_SOURCE`를 지정한다. ROS 2 메시지는 준비 스크립트가 확인하는 `external/msgs/`에 둔다. 인터넷 없이 이미 준비한 소스로 빌드하려면 명령 앞에 `OSS_AP_UPDATE=0`을 붙인다. 이 경우 `oss-ap`와 `external/msgs/`를 먼저 준비해야 한다.
+입력 위치를 바꾸려면 `PARA_SDK`, `DECISION_GENERATED`, `OSS_AP_SOURCE`를 지정한다. `OSS_AP_SOURCE`를 바꾸면 SDK 기본 경로도 해당 저장소의 `sdk/<아키텍처>/`로 바뀐다. ROS 2 메시지는 준비 스크립트가 확인하는 `external/msgs/`에 둔다. 인터넷 없이 이미 준비한 소스로 빌드하려면 명령 앞에 `OSS_AP_UPDATE=0`을 붙인다. 이 경우 `oss-ap`와 `external/msgs/`를 먼저 준비해야 한다.
 
 ROS 2 메시지를 수동으로 가져올 때는 다음 명령을 사용한다.
 

@@ -1,7 +1,7 @@
 __pycache__/
 *.py[cod]
-build/
-build-*/
+/build/
+/build-*/
 CMakeFiles/
 CMakeCache.txt
 Testing/
@@ -9,7 +9,6 @@ output/
 /sdk/
 /external/msgs/
 /overrides/generated/decision-ap-generated/
-/map/sample-map-decision/
 /lib/proxsuite-devel/*
 !/lib/proxsuite-devel/include/
 !/lib/proxsuite-devel/package.xml
