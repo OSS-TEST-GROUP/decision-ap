@@ -4,26 +4,45 @@ Adaptive AUTOSAR 기반 Autoware Planning을 위한 Decision AP 파티션이다.
 
 ## 1. 준비
 
-| 항목 | 필요한 것 |
-| --- | --- |
-| 호스트 | Linux x86_64 PC 또는 ARM64 보드, Docker 데몬과 Docker Buildx |
-| PARA SDK | 대상 아키텍처의 `sdk/x86_64/` 또는 `sdk/aarch64/` |
-| 생성 ARA 헤더 | `overrides/generated/decision-ap-generated/` |
-| 외부 Adaptive 소스 | 기본 위치 `../oss-ap/` |
-| ROS 2 메시지 소스 | `external/msgs/`; 없으면 빌드 스크립트가 `oss-ap.repos`로 가져옴 (`vcs` 필요) |
-| 샘플 지도 | `map/sample-map-decision/`에 `lanelet2_map.osm`, `pointcloud_map.pcd`, `map_config.yaml`, `map_projector_info.yaml` |
-
-PARA SDK, 생성 ARA 헤더, 지도, 외부 ROS 2 메시지는 Git에 포함되지 않는다. `oss-ap`가 없으면 빌드 스크립트가 기본 SSH 주소에서 복제하므로 접근 권한이 필요하다. 빌드 스크립트는 `oss-ap`를 고정 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 기존 작업 트리에 변경이 있으면 자동 갱신이 중단된다.
-
-입력 위치를 바꾸려면 `PARA_SDK`, `DECISION_GENERATED`, `OSS_AP_SOURCE`를 지정한다. ROS 2 메시지는 준비 스크립트가 확인하는 `external/msgs/`에 둔다. 인터넷 없이 이미 준비한 소스로 빌드하려면 명령 앞에 `OSS_AP_UPDATE=0`을 붙인다. 이 경우 `oss-ap`와 `external/msgs/`를 먼저 준비해야 한다.
-
-ROS 2 메시지를 수동으로 가져올 때는 다음 명령을 사용한다.
+Linux x86_64 PC 또는 ARM64 보드에서 실행한다. 입력 준비에는 Git과 Python 3, ROS 메시지를 온라인으로 가져올 때는 vcstool이 필요하다. 이미지 빌드에는 Docker 데몬과 Docker Buildx가 필요하다. 모든 명령은 저장소 루트에서 실행한다.
 
 ```sh
-vcs import external < oss-ap.repos
+./docker/build-arm64.sh
 ```
 
-모든 명령은 저장소 루트에서 실행한다.
+x86_64 이미지는 `./docker/build-x86.sh`를 사용한다. 각 빌드 스크립트가 아래 입력 준비를 자동으로 수행한 뒤 이미지를 빌드한다.
+
+| 단계 | 빌드 스크립트가 자동으로 수행하는 준비 |
+| --- | --- |
+| 외부 소스 | `../oss-ap/`를 복제하고 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춤. 기존 작업 트리에 변경이 있으면 중단 |
+| SDK | `oss-ap/sdk/<아키텍처>/`에서 `sdk/<아키텍처>/`로 없는 SDK를 복사. x86_64 PC의 ARM64 크로스 빌드는 호스트 SDK도 준비 |
+| 생성 ARA 헤더 | 생성본의 `Exe_ServiceCreator/include/`와 필요한 의존 타입을 `overrides/generated/decision-ap-generated/`로 복사하고 검증 |
+| ROS 메시지 | `external/msgs/`를 `oss-ap.repos`로 가져옴. `ROS_MSGS_SOURCE`를 지정하면 기존 로컬 저장소에서 복사 |
+| 오버레이 | 파일 복사는 이미지 빌드 시 Dockerfile이 수행. 원본 `oss-ap` 소스 파일은 수정하지 않음 |
+
+기존 로컬 SDK·생성 헤더·메시지 저장소는 덮어쓰지 않는다. 준비된 입력은 다시 검사한다. SDK, 로컬 생성 헤더, 외부 ROS 메시지는 이 저장소의 Git에 포함되지 않는다.
+
+**고정된 `oss-ap`에는 Decision AP 전용 네 서비스의 생성 헤더가 없다.** 최초 준비 시 기존 개발 환경의 `Ecu_Machine` 디렉터리를 지정한다.
+
+```sh
+DECISION_GENERATED_SOURCE=/기존/개발환경/oss-ap/src/Ecu_Machine \
+  ./docker/build-arm64.sh
+```
+
+해당 원본에는 `Exe_ServiceCreator/include/oss/srv/AA2SCrMetrics`, `AA2SCrRemaining`, `AA2SCrTurn`, `AA2SCrHazard`의 proxy·skeleton·common 헤더가 필요하다. 참조하는 타입이 같은 include 트리에 없으면 원본의 `Exe_motionvelocityplanner/include/`, `Exe_missionplanner/include/`에서도 찾아 복사한다. 산출물이 불완전하면 준비를 중단하며, 이 저장소에는 재생성용 ARXML이나 생성기가 포함돼 있지 않다.
+
+| 입력 변수 | 용도 |
+| --- | --- |
+| `OSS_AP_SOURCE`, `OSS_AP_URL` | 외부 소스 위치 및 복제 주소 |
+| `PARA_SDK`, `PARA_SDK_HOST` | 대상·호스트 SDK 위치 |
+| `DECISION_GENERATED_SOURCE` | 최초 복사할 생성본의 `Ecu_Machine` 위치 |
+| `DECISION_GENERATED` | 준비된 생성본 위치. `Exe_ServiceCreator/include/`를 포함해야 함 |
+| `ROS_MSGS_SOURCE` | 기존 메시지 저장소 네 개를 포함한 디렉터리 |
+| `OSS_AP_UPDATE=0` | 외부 Git clone·fetch·checkout과 메시지 다운로드를 생략. 로컬 파일 복사와 검사는 수행 |
+
+샘플 지도는 별도로 `map/sample-map-decision/`에 `lanelet2_map.osm`, `pointcloud_map.pcd`, `map_config.yaml`, `map_projector_info.yaml`을 준비한다.
+
+셸에 `PARA_SDK`가 설정돼 있으면 그 위치가 우선한다. 오래된 SDK에 OTAClient용 CycloneDDS 도구가 없다면 `env -u PARA_SDK ./docker/build-arm64.sh`로 실행해 `oss-ap`에 포함된 SDK를 복사·사용한다. 빌드 스크립트가 필요한 도구·라이브러리를 Docker 실행 전에 검사한다.
 
 ## 2. 아키텍처별 빌드와 실행
 

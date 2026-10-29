@@ -4,9 +4,11 @@
 
 빌드는 `decision-ap-bridge`, `decision-ap-planning`, `decision-ap-integrated` 순서다. 브리지 이미지는 고정된 `oss-ap` 소스에 [Decision AP 변경분](../docs/OSS_AP_CHANGES.md)을 적용해 `Exe_ServiceCreator`와 OTAClient를 만든다. 계획 이미지는 `ap-decision`을 만든다. 통합 이미지는 두 이미지의 PARA SDK 버전을 확인한 뒤 ROS 2·PARA 런타임에 계획 실행 파일과 Lanelet 라이브러리를 합친다.
 
+입력 준비는 공통 빌드 스크립트 `build/build_all.sh`가 맡는다. 외부 소스·SDK·생성 헤더·ROS 메시지를 준비한 뒤, Dockerfile의 `COPY` 명령으로 `overrides/`를 이미지 안의 외부 소스에 덮어쓴다. `oss-ap` 작업 트리의 소스 파일은 수정하지 않는다.
+
 | 디렉터리 | 역할 |
 | --- | --- |
-| `build/` | 외부 소스 준비와 아키텍처별 이미지 빌드 단계 |
+| `build/` | 준비 스크립트 호출과 아키텍처별 이미지 빌드 |
 | `images/` | 브리지·계획·통합 이미지 Dockerfile |
 | `run/` | 세 컨테이너의 공통 실행 로직 |
 | `entrypoint/` | 통합 컨테이너의 EM 시작과 실행 환경 구성 |
