@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage generated ARA headers and their dependencies without editing upstream."""
+"""Validate generated header overlays against upstream without editing either tree."""
 import pathlib
 import re
 import shutil
@@ -54,8 +54,15 @@ def validate(base, dependency_roots=()):
 def main():
     source, destination = map(pathlib.Path, sys.argv[1:])
     if destination.exists():
-        count = validate(destination / "Exe_ServiceCreator/include")
-        print(f"Verified generated headers: {destination} ({count} service/dependency files)")
+        # Git contains only new/modified headers; resolve shared types from
+        # upstream in a temporary tree, never by filling the overlay directory.
+        with tempfile.TemporaryDirectory(prefix="decision-generated-check-") as temporary:
+            include = pathlib.Path(temporary) / "include"
+            shutil.copytree(source / "Exe_ServiceCreator/include", include)
+            shutil.copytree(destination / "Exe_ServiceCreator/include", include, dirs_exist_ok=True)
+            roots = [source / "Exe_motionvelocityplanner/include", source / "Exe_missionplanner/include"]
+            count = validate(include, roots)
+        print(f"Verified upstream + generated overlay: {destination} ({count} service/dependency files)")
         return
     source_include = source / "Exe_ServiceCreator/include"
     if not source_include.is_dir():

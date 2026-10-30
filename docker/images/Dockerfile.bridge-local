@@ -10,8 +10,13 @@ COPY --from=para_sdk / /opt/para-sdk
 COPY --from=bridge_msgs / /workspace/src/msgs
 COPY --from=oss_ap / /workspace/src/Ecu_Machine
 COPY --from=decision_generated /Exe_ServiceCreator/include/ /workspace/src/Ecu_Machine/Exe_ServiceCreator/include/
-RUN rm -rf /workspace/src/Ecu_Machine/CM/manifest/com/someip \
-    /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
+# Keep unchanged contracts from upstream and overlay only additions/changes.
+RUN find /workspace/src/Ecu_Machine/CM/manifest/com/someip -type f \
+      ! -name CM_P_MP_ServiceCreator.json \
+      ! -name CM_R_Scr_missionplanner.json \
+      ! -name CM_R_Scr_planningvalidator.json -delete \
+    && find /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface -type f \
+      ! -name PPort_SCr2MP.json ! -name RPort_MP2SCr.json ! -name RPort_PV2SCr.json -delete
 COPY overrides/Ecu_Machine/CM/bridge-manifest/com /workspace/src/Ecu_Machine/CM/manifest/com
 COPY overrides/Ecu_Machine/Exe_ServiceCreator/manifest/interface /workspace/src/Ecu_Machine/Exe_ServiceCreator/manifest/interface
 COPY src/Ecu_Machine/cmake/BridgeCMakeLists.txt /workspace/src/Ecu_Machine/CMakeLists.txt

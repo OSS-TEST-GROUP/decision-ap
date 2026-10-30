@@ -4,8 +4,8 @@ set -euo pipefail
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 arch="${ARCH:-$(uname -m)}"
 case "${arch}" in
-  x86_64) docker_arch=amd64; image_suffix=""; default_katech_repo=katech-autoware-system-control ;;
-  aarch64) docker_arch=arm64; image_suffix=-aarch64; default_katech_repo=katech-autoware-system-control-arm64 ;;
+  x86_64) docker_arch=amd64; image_suffix="" ;;
+  aarch64) docker_arch=arm64; image_suffix=-aarch64 ;;
   *) echo "Unsupported architecture: ${arch}" >&2; exit 1 ;;
 esac
 network="${AP_NET:-decision-ap-net}"
@@ -13,11 +13,17 @@ subnet="${AP_SUBNET:-10.89.0.0/24}"
 bridge_ip="${AP_BRIDGE_IP:-10.89.0.92}"
 domain="${ROS_DOMAIN_ID:-42}"
 map_dir="${KATECH_MAP_PATH:-${repo_dir}/map/sample-map-decision}"
-image_repo="${KATECH_IMAGE_REPO:-${default_katech_repo}}"
-perception_image="${KATECH_PERCEPTION_IMAGE:-${image_repo}:adsw-perception}"
-control_image="${KATECH_CONTROL_IMAGE:-${image_repo}:adsw-control}"
-perception_name="katech-perception"
-control_name="katech-control"
+default_perception_image=ghcr.io/oss-test-group/adsw-perception:latest
+default_control_image=ghcr.io/oss-test-group/adsw-control:latest
+# Preserve explicitly configured legacy repositories; defaults use GHCR directly.
+if [[ -n "${KATECH_IMAGE_REPO:-}" ]]; then
+  default_perception_image="${KATECH_IMAGE_REPO}:adsw-perception"
+  default_control_image="${KATECH_IMAGE_REPO}:adsw-control"
+fi
+perception_image="${KATECH_PERCEPTION_IMAGE:-${default_perception_image}}"
+control_image="${KATECH_CONTROL_IMAGE:-${default_control_image}}"
+perception_name="adsw-perception"
+control_name="adsw-control"
 rviz_mode="${KATECH_RVIZ:-false}"
 log_windows="${KATECH_LOG_WINDOWS:-auto}"
 log_dir="${KATECH_LOG_DIR:-${repo_dir}/output/katech-logs/$(date +%Y%m%d_%H%M%S)_$$}"
@@ -40,7 +46,7 @@ case "${network_mode}" in
     ;;
   *) echo "KATECH_NETWORK_MODE must be bridge or host." >&2; exit 1 ;;
 esac
-integrated_container=decision-ap-integrated
+integrated_container=adsw-decision-ap
 integrated_image="${INTEGRATED_IMAGE:-decision-ap-integrated:local${image_suffix}}"
 
 case "${rviz_mode}" in
@@ -84,24 +90,22 @@ if ! docker info >/dev/null 2>&1; then
   exit 1
 fi
 ensure_partition_image() {
-  local image="$1" tag="$2" remote_image
+  local image="$1" default_image="$2"
   if docker image inspect "${image}" >/dev/null 2>&1; then
     return 0
   fi
-  # Only the default local tags have a known GHCR counterpart.
-  if [[ "${image}" != "${default_katech_repo}:${tag}" ]]; then
+  # Automatically download only the standard GHCR images.
+  if [[ "${image}" != "${default_image}" ]]; then
     return 0
   fi
-  remote_image="ghcr.io/oss-test-group/autoware-partition:${tag}"
-  echo "Local image ${image} is missing; pulling ${remote_image} (linux/${docker_arch})."
-  if ! docker pull --platform "linux/${docker_arch}" "${remote_image}"; then
-    echo "Failed to pull ${remote_image}; check GHCR access or provide ${image} locally." >&2
+  echo "Image ${image} is missing; pulling it (linux/${docker_arch})."
+  if ! docker pull --platform "linux/${docker_arch}" "${image}"; then
+    echo "Failed to pull ${image}; check GHCR access or provide it locally." >&2
     exit 1
   fi
-  docker tag "${remote_image}" "${image}"
 }
-ensure_partition_image "${perception_image}" adsw-perception
-ensure_partition_image "${control_image}" adsw-control
+ensure_partition_image "${perception_image}" ghcr.io/oss-test-group/adsw-perception:latest
+ensure_partition_image "${control_image}" ghcr.io/oss-test-group/adsw-control:latest
 missing_images=()
 for image in "${perception_image}" "${control_image}" "${integrated_image}"; do
   if ! docker image inspect "${image}" >/dev/null 2>&1; then
@@ -124,11 +128,11 @@ for image in "${perception_image}" "${control_image}" "${integrated_image}"; do
   fi
 done
 if [[ "${docker_arch}" == arm64 ]]; then
-  if ! docker run --rm --platform linux/arm64 --network none \
-      --entrypoint /bin/bash "${control_image}" -lc \
-      'source /opt/ros/humble/setup.bash && source /opt/autoware/setup.bash && source /opt/autoware-system/setup.bash && ros2 pkg prefix tier4_system_launch >/dev/null && ros2 pkg prefix autoware_mrm_handler >/dev/null && grep -q '\''name="launch_system" value="true"'\'' /opt/autoware-system/share/obigo_launch/launch/sample_adsw_control_run.launch.xml'; then
-    echo "ARM64 Control image must include System packages and launch_system=true: ${control_image}" >&2
-    echo "Pull the updated GHCR Control image and tag it as ${control_image}." >&2
+  if ! control_share="$(docker run --rm -i --platform linux/arm64 --network none \
+      --entrypoint /bin/bash "${control_image}" -s \
+      <"${repo_dir}/docker/tools/check-control-image.sh")"; then
+    echo "ARM64 Control image must include tier4_system_launch, autoware_mrm_handler, and launch_system=true: ${control_image}" >&2
+    echo "Use a Control image built with System packages; see katech-autoware/partition/partition_config/sample-adsw-control.json." >&2
     exit 1
   fi
 fi
@@ -167,8 +171,8 @@ if [[ "${docker_arch}" == arm64 && "$(uname -m)" == x86_64 &&
   config_overlay="${log_dir}/qemu-config"
   mkdir -p "${config_source}"
   for config in \
-    "topics.yaml:/opt/autoware-system/share/obigo_launch/config/system/component_state_monitor/topics.yaml" \
-    "planning.yaml:/opt/autoware-system/share/obigo_launch/config/system/diagnostics/planning.yaml"; do
+    "topics.yaml:${control_share}/config/system/component_state_monitor/topics.yaml" \
+    "planning.yaml:${control_share}/config/system/diagnostics/planning.yaml"; do
     filename="${config%%:*}"
     image_path="${config#*:}"
     docker run --rm --platform linux/arm64 --network none --entrypoint /bin/cat \
@@ -329,8 +333,8 @@ check_container_started "${perception_name}" Perception
 control_args=("${common_args[@]}")
 if [[ "${qemu_diagnostics}" == true ]]; then
   control_args+=(
-    -v "${config_overlay}/topics.yaml:/opt/autoware-system/share/obigo_launch/config/system/component_state_monitor/topics.yaml:ro"
-    -v "${config_overlay}/planning.yaml:/opt/autoware-system/share/obigo_launch/config/system/diagnostics/planning.yaml:ro"
+    -v "${config_overlay}/topics.yaml:${control_share}/config/system/component_state_monitor/topics.yaml:ro"
+    -v "${config_overlay}/planning.yaml:${control_share}/config/system/diagnostics/planning.yaml:ro"
   )
 fi
 docker run -d --name "${control_name}" "${control_args[@]}" \

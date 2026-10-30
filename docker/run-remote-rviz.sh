@@ -3,7 +3,7 @@ set -euo pipefail
 
 # The board runs DecisionAP and Autoware. This PC runs only the RViz client.
 domain="${ROS_DOMAIN_ID:-42}"
-image="${KATECH_RVIZ_IMAGE:-katech-autoware-system-control:adsw-perception}"
+image="${KATECH_RVIZ_IMAGE:-ghcr.io/oss-test-group/adsw-perception:latest}"
 interface="${KATECH_NETWORK_INTERFACE:-}"
 name="decision-ap-remote-rviz-${domain}"
 
