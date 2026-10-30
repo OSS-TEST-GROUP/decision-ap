@@ -57,12 +57,16 @@ fi
 
 if [[ ! -f "${repo_dir}/external/msgs/autoware_msgs/autoware_planning_msgs/package.xml" ]]; then
   if [[ "${update}" == 0 ]]; then
-    echo "ROS messages are missing; run vcs import external < oss-ap.repos before offline build" >&2
+    echo "ROS messages are missing; run vcs import external < ${oss_ap_dir}/oss-ap.repos before offline build" >&2
     exit 1
   fi
   command -v vcs >/dev/null || {
-    echo "vcs is required to import ROS messages from oss-ap.repos" >&2
+    echo "vcs is required to import ROS messages from ${oss_ap_dir}/oss-ap.repos" >&2
     exit 1
   }
-  vcs import "${repo_dir}/external" --input "${repo_dir}/oss-ap.repos" --skip-existing
+  [[ -f "${oss_ap_dir}/oss-ap.repos" ]] || {
+    echo "ROS message manifest is missing: ${oss_ap_dir}/oss-ap.repos" >&2
+    exit 1
+  }
+  vcs import "${repo_dir}/external" --input "${oss_ap_dir}/oss-ap.repos" --skip-existing
 fi

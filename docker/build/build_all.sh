@@ -106,10 +106,11 @@ if [[ -n "${ROS_MSGS_SOURCE:-}" ]]; then
   done
 fi
 if ! messages_ready; then
-  [[ "${update}" == 1 ]] || fail "ROS message sources missing: ${msgs}; set ROS_MSGS_SOURCE or import oss-ap.repos online"
-  command -v vcs >/dev/null || fail "vcstool is required to import oss-ap.repos; alternatively set ROS_MSGS_SOURCE"
+  [[ "${update}" == 1 ]] || fail "ROS message sources missing: ${msgs}; set ROS_MSGS_SOURCE or import ${oss_ap}/oss-ap.repos online"
+  command -v vcs >/dev/null || fail "vcstool is required to import ${oss_ap}/oss-ap.repos; alternatively set ROS_MSGS_SOURCE"
+  [[ -f "${oss_ap}/oss-ap.repos" ]] || fail "ROS message manifest missing: ${oss_ap}/oss-ap.repos"
   mkdir -p "${repo_dir}/external"
-  vcs import "${repo_dir}/external" < "${repo_dir}/oss-ap.repos"
+  vcs import "${repo_dir}/external" < "${oss_ap}/oss-ap.repos"
   messages_ready || fail "ROS message import did not create all required packages"
 fi
 echo "Prepared ${arch} inputs. Starting Docker image builds."

@@ -10,6 +10,7 @@ Testing/
 output/
 /sdk/
 /external/msgs/
+/oss-ap.repos
 /lib/proxsuite-devel/*
 !/lib/proxsuite-devel/include/
 !/lib/proxsuite-devel/package.xml

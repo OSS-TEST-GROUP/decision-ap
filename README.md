@@ -9,7 +9,6 @@ Autoware의 Decision 파티션을 Adaptive AUTOSAR 기반으로 이식한 프로
 decision-ap/
 ├── README.md
 ├── CMakeLists.txt                    # planning 라이브러리 빌드 구성
-├── oss-ap.repos                      # 외부 ROS 2 메시지 저장소 목록
 ├── src/Ecu_Machine/
 │   ├── CMakeLists.txt                # Adaptive Decision 앱 빌드·설치 구성
 │   ├── DecisionAP/
@@ -39,8 +38,8 @@ decision-ap/
 │   ├── run/                         # 스택 공통 실행 로직
 │   ├── entrypoint/                  # 컨테이너 내부 초기화와 EM 시작
 │   └── tools/                       # 생성 헤더 준비·이미지 병합·진단 도구
-├── sdk/                             # oss-ap에서 복사한 PARA SDK (Git 제외)
-├── external/msgs/                   # 외부 ROS 2 메시지 소스 (Git 제외)
+├── sdk/                             # ../oss-ap/sdk에서 복사한 PARA SDK (Git 제외)
+├── external/msgs/                   # ../oss-ap/oss-ap.repos로 가져온 메시지 소스 (Git 제외)
 ├── lib/                             # Lanelet2·planning 계산 의존 라이브러리
 ├── cmake/                           # planning 라이브러리 CMake 보조 파일
 ├── map/sample-map-decision/          # 샘플 지도
@@ -49,22 +48,7 @@ decision-ap/
 └── output/                          # 실행 로그 등 산출물 (Git 제외)
 ```
 
-
-원본과 같은 파일은 `../oss-ap/`에서 가져오고, `overrides/`에는 수정·추가 파일만 보관한다. 생성 헤더도 신규 서비스 헤더·타입 18개만 포함하며, 공통 헤더는 빌드 시 원본과 합쳐 사용한다.
-
-## 1. 준비
-
-Linux x86_64 PC 또는 ARM64 보드에서 실행한다. 모든 명령은 저장소 루트에서 실행한다.
-
-| 항목 | 준비 방법 |
-| --- | --- |
-| 호스트 도구 | 사용자가 Docker 데몬·Buildx, Git, Python 3, vcstool 준비 |
-| PARA SDK 및 oss-ap | 빌드 스크립트가 외부 `oss-ap`를 `../oss-ap/`에 복제하고 SDK를 대상 아키텍처의 `sdk/x86_64/` 또는 `sdk/aarch64/`로 복사. 기존 SDK가 있으면 검사 후 사용 |
-| 샘플 지도 | Git에 포함된 `map/sample-map-decision/` 사용. `lanelet2_map.osm`, `pointcloud_map.pcd`, `map_config.yaml`, `map_projector_info.yaml` 포함 |
-
-PARA SDK와 외부 ROS 2 메시지 소스는 Git에 포함되지 않는다. 팝콘사의 `oss-ap`가 없으면 빌드 스크립트가 기본 SSH 주소에서 복제하므로 접근 권한이 필요하다. 빌드 스크립트는 `oss-ap`를 고정 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 기존 작업 트리에 변경이 있으면 자동 갱신이 중단된다. 준비된 로컬 소스를 그대로 사용하려면 `OSS_AP_UPDATE=0`을 지정한다. 이 경우 외부 소스와 ROS 메시지를 미리 준비해야 한다.
-
-## 2. 아키텍처별 빌드와 실행
+## 1. 아키텍처별 빌드와 실행
 
 | 실행 위치 | 이미지 빌드 | 스택 실행 | RViz | 외부 x86_64 PC에서 실행 |
 | --- | --- | --- | --- | --- |
@@ -76,7 +60,7 @@ PARA SDK와 외부 ROS 2 메시지 소스는 Git에 포함되지 않는다. 팝�
 
 x86_64 PC에서 ARM64 이미지를 빌드·실행하려면 x86_64와 ARM64 PARA SDK 및 Docker의 ARM64 binfmt/QEMU 지원이 필요하다. 이 빌드는 브리지를 ARM64 sysroot로 크로스 컴파일하고 Decision 앱을 QEMU에서 빌드한다. `BRIDGE_BUILD_MODE=native`를 지정하면 브리지도 QEMU에서 빌드한다.
 
-### 2.1. 이미지 구성 및 빌드 명령이 수행하는 작업
+### 1.1. 이미지 구성 및 빌드 명령이 수행하는 작업
 
 이 저장소의 빌드 명령은 **Decision AP 실행에 필요한 브리지, Decision 앱, 통합 이미지**를 만든다. Perception과 Control은 GHCR에 배포된 릴리스 이미지를 사용한다.
 
@@ -88,14 +72,7 @@ x86_64 PC에서 ARM64 이미지를 빌드·실행하려면 x86_64와 ARM64 PARA 
 | Decision 앱 이미지 | Adaptive AUTOSAR 기반 Decision 앱을 담은 이미지. 경로·행동·속도 planning과 최종 궤적을 생성하는 `ap-decision`, 앱 manifest, Lanelet 라이브러리를 포함 | 이 저장소의 빌드 명령으로 생성 | `decision-ap-planning:local` |
 | 통합 이미지 | 브리지 실행 환경에 Decision 앱을 합친 최종 이미지. 하나의 EM·CM 아래에서 Service Creator·OTAClient·Decision 앱을 실행 | 브리지와 Decision 앱 이미지를 합쳐 생성 | `decision-ap-integrated:local` |
 
-위 Decision AP 이미지 태그는 x86_64 기준이다. ARM64 빌드는 각각 `:local-aarch64`를 사용하며, 최종 이미지는 `decision-ap-integrated:local-aarch64`다. 이미지 이름과 실행 컨테이너 이름은 별개다.
-
-빌드 명령은 다음 순서로 작업한다.
-
-1. 외부 소스·SDK·생성 ARA 헤더·ROS 메시지를 준비하고 검사한다.
-2. 외부 `oss-ap`에 이 저장소의 변경 사항을 이미지 안에서 적용해 Service Creator·OTAClient·EM·CM을 빌드하고, ROS 2·PARA 실행 환경을 포함한 브리지 이미지를 만든다.
-3. Decision AP 소스로 `ap-decision`과 planning 라이브러리를 빌드해 Decision 앱 이미지를 만든다.
-4. 두 이미지의 아키텍처와 SDK 버전을 확인하고, 브리지 이미지에 Decision 앱·라이브러리·통신 설정을 합쳐 통합 이미지를 만든다.
+위 Decision AP 이미지 태그는 x86_64 기준이다. ARM64 빌드는 각각 `:local-aarch64`를 사용하며, 최종 이미지는 `decision-ap-integrated:local-aarch64`다.
 
 ```mermaid
 flowchart TB
@@ -114,8 +91,19 @@ flowchart TB
         decision -->|"planning 궤적 · ROS 2"| control
     end
 ```
+### 빌드시 팝콘사 'oss-ap' 참조
 
-### 2.2. 실행 명령이 수행하는 작업
+기본 외부 저장소는 이 저장소 밖의 `../oss-ap/`이며, 없으면 빌드 스크립트가 복제한다. 빌드 시 `oss-ap`를 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. `OSS_AP_SOURCE`로 다른 위치를 지정할 수 있다.
+
+| 항목 | 실제 출처와 사용 방식 | 이 저장소의 Git |
+| --- | --- | --- |
+| `oss-ap.repos` | `../oss-ap/oss-ap.repos`를 직접 읽어 ROS 2 메시지 저장소를 가져옴 | 제외 |
+| `sdk/` | `../oss-ap/sdk/`에서 필요한 아키텍처의 PARA SDK를 로컬로 복사 | 제외 |
+| `external/msgs/` | 원본 `oss-ap.repos`에 기록된 별도 ROS 2 메시지 저장소를 가져옴 | 제외 |
+| `oss-ap/src/Ecu_Machine/` | 외부 `oss-ap` 작업 트리에서 Docker 빌드 입력으로 사용 | 제외|
+| `overrides/Ecu_Machine/`, `overrides/generated/` | oss-ap 원본과 다른 수정 파일 및 원본에 없는 생성 헤더만 보관 | 저장소에서 추적 |
+
+### 1.2. 실행 명령이 수행하는 작업
 
 `./docker/run-x86.sh`, `./docker/run-arm64-board.sh`, `./docker/run-arm64-qemu.sh`는 아키텍처와 네트워크·RViz 설정을 선택하고, 공통 실행 스크립트가 다음 세 컨테이너를 시작한다.
 
@@ -129,7 +117,7 @@ Perception·Control은 위 표의 GHCR 이미지를 직접 사용하며, 로컬�
 
 스택은 기본적으로 `ROS_DOMAIN_ID=42`, planning 시뮬레이션 모드 `PLANNING_AA_SIMULATION=1`로 실행된다. 실행 터미널에서 `Ctrl+C`를 누르면 스택이 종료되고 로그는 남는다.
 
-### 2.3. ARM64 보드와 외부 PC RViz
+### 1.3. ARM64 보드와 외부 PC RViz
 
 보드와 x86_64 PC를 서로 통신 가능한 같은 LAN에 연결한다. 각 장비에서 `ip -br address`로 LAN 인터페이스를 확인하고, 아래 명령의 자리표시자를 꺾쇠괄호까지 포함해 실제 이름으로 바꾼 뒤 실행한다. 보드에서는 다음 명령으로 스택을 시작한다.
 
@@ -146,7 +134,7 @@ KATECH_NETWORK_INTERFACE=<PC_LAN_인터페이스> ./docker/run-remote-rviz.sh
 
 보드와 PC의 `ROS_DOMAIN_ID`를 같게 설정한다. RViz에서 map·TF·route·trajectory가 보이지 않으면 양쪽 인터페이스 설정과 LAN의 UDP multicast·방화벽을 확인한다. 외부 PC에서 ROS 2나 Autoware를 별도로 빌드할 필요는 없다.
 
-## 3. RViz 설정과 경로 요청
+## 2. RViz 설정과 경로 요청
 
 x86_64 PC 실행과 QEMU 실행은 PC의 `DISPLAY` 및 X11 소켓 `/tmp/.X11-unix`가 필요하다. 외부 PC RViz도 X11 데스크톱 터미널에서 시작한다. RViz 실행 파일과 기본 화면 구성은 Perception 이미지에 포함돼 있다. RViz의 Fixed Frame은 `map`으로 설정한다.
 
@@ -158,7 +146,7 @@ x86_64 PC 실행과 QEMU 실행은 PC의 `DISPLAY` 및 X11 소켓 `/tmp/.X11-uni
 
 route는 `/planning/mission_planning/route`, 제어 궤적은 `/planning/scenario_planning/trajectory`로 발행된다. `ros/goal_pose_visualizer.py`는 route의 목표 자세만 `/planning/mission_planning/echo_back_goal_pose`로 재발행한다.
 
-## 4. 설정 변경
+## 3. 설정 변경
 
 환경변수를 수정하고 싶은 경우 실행 명령 앞에 붙인다. 예: `KATECH_MAP_PATH=/data/map ./docker/run-x86.sh`.
 
@@ -177,7 +165,7 @@ route는 `/planning/mission_planning/route`, 제어 궤적은 `/planning/scenari
 | `PLANNING_AA_SHM_SIZE` | 통합 컨테이너 공유 메모리 크기; 기본 `2g` |
 | `PLANNING_AA_AVOIDANCE_DEBUG` | `1`: 회피 대상 선택·거부 단계를 로그에 기록 |
 
-## 5. 로그 확인
+## 4. 로그 확인
 
 실행 화면의 `Logs:` 줄이 해당 실행의 로그 디렉터리다. 기본 위치는 `output/katech-logs/<실행 시각>/`이다. 실시간으로 보려면 다른 터미널에서 `tail -F <로그 디렉터리>/*.log`를 실행한다.
 

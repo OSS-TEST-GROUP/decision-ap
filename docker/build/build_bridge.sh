@@ -26,7 +26,7 @@ test -f "${bridge_ecu_dir}/package.xml" || {
   echo "Local Service Creator source missing: ${bridge_dir}" >&2; exit 1;
 }
 test -f "${msgs_dir}/autoware_msgs/autoware_planning_msgs/package.xml" || {
-  echo "ROS message definitions missing: ${msgs_dir}; run vcs import external < oss-ap.repos" >&2; exit 1;
+  echo "ROS message definitions missing: ${msgs_dir}; run vcs import external < ${bridge_dir}/oss-ap.repos" >&2; exit 1;
 }
 test -d "${generated_dir}/Exe_ServiceCreator/include/oss/srv/AA2SCrMetrics" || {
   echo "Decision AP generated ARA headers missing: ${generated_dir}" >&2; exit 1;
