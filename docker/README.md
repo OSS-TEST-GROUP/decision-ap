@@ -4,7 +4,7 @@
 
 빌드는 `decision-ap-bridge`, `decision-ap-planning`, `decision-ap-integrated` 순서다. 브리지 이미지는 고정된 `oss-ap` 소스에 [Decision AP 변경분](../docs/OSS_AP_CHANGES.md)을 적용해 `Exe_ServiceCreator`와 OTAClient를 만든다. Decision 앱 이미지는 실행 파일 `ap-decision`을 담는다. 통합 이미지는 두 이미지의 PARA SDK 버전을 확인한 뒤 ROS 2·PARA 런타임에 Decision 앱 실행 파일과 Lanelet 라이브러리를 합친다.
 
-GHCR 릴리스 대상은 Decision 앱 이미지이며, 패키지 이름은 `adsw-decision-ap`로 예정돼 있다. 브리지·통합 이미지는 로컬 빌드 및 스택 실행에 사용한다. 현재 스크립트에는 GHCR의 Decision 앱 릴리스 이미지를 가져와 통합하는 경로가 없으며, 세 이미지를 로컬에서 빌드한다.
+GHCR 릴리스 대상은 통합 실행 이미지 `ghcr.io/oss-test-group/adsw-decision-ap`다. 브리지와 Decision 앱 이미지는 로컬 빌드에 사용한다. 일반 빌드 스크립트는 세 이미지를 로컬에서 만들고, [릴리스 절차](../release/README.md)는 amd64·arm64 통합 이미지의 staging 게시와 검증된 manifest 조립을 담당한다.
 
 입력 준비는 공통 빌드 스크립트 `build/build_all.sh`가 맡는다. 외부 소스·SDK·생성 헤더·ROS 메시지를 준비한 뒤, Dockerfile의 `COPY` 명령으로 `overrides/`를 이미지 안의 외부 소스에 덮어쓴다. `oss-ap` 작업 트리의 소스 파일은 수정하지 않는다.
 

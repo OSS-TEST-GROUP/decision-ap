@@ -113,6 +113,21 @@ if ! messages_ready; then
   vcs import "${repo_dir}/external" < "${oss_ap}/oss-ap.repos"
   messages_ready || fail "ROS message import did not create all required packages"
 fi
+if [[ -n "${RELEASE_SNAPSHOT_TAG:-}" ]]; then
+  # Normal builds may reuse local inputs; a release must match its locked sources.
+  diff -qr "${oss_ap}/sdk/${arch}" "${sdk}" >/dev/null || fail "Local PARA SDK differs from pinned oss-ap SDK"
+  lock_count=0
+  while read -r package expected_sha; do
+    [[ -z "${package}" || "${package}" == \#* ]] && continue
+    [[ "${expected_sha}" =~ ^[0-9a-f]{40}$ ]] || fail "Invalid ROS lock entry: ${package}"
+    package_dir="${msgs}/${package}"
+    [[ -d "${package_dir}/.git" ]] || fail "Locked ROS checkout missing: ${package_dir}"
+    [[ "$(git -C "${package_dir}" rev-parse HEAD)" == "${expected_sha}" ]] || fail "ROS checkout commit differs from lock: ${package}"
+    [[ -z "$(git -C "${package_dir}" status --porcelain)" ]] || fail "ROS checkout is dirty: ${package}"
+    lock_count=$((lock_count + 1))
+  done < "${repo_dir}/release/ros-messages.lock"
+  [[ "${lock_count}" -eq "${#packages[@]}" ]] || fail "ROS lock must contain ${#packages[@]} repositories"
+fi
 echo "Prepared ${arch} inputs. Starting Docker image builds."
 
 [[ -f "${sdk}/share/cmake/Modules/PARA/Para.cmake" ]] || fail "PARA SDK missing: ${sdk}; set PARA_SDK"
@@ -162,7 +177,21 @@ for image in "${bridge_image}" "${planning_image}"; do
   [[ "${version}" == "${sdk_version}" ]] || fail "PARA SDK label mismatch in ${image}"
 done
 # The Docker driver can resolve the component images loaded above locally.
+release_labels=()
+release_build_options=()
+if [[ -n "${RELEASE_SNAPSHOT_TAG:-}" ]]; then
+  [[ -n "${RELEASE_SOURCE_SHA:-}" && -n "${RELEASE_CREATED:-}" ]] || fail "Release labels require RELEASE_SOURCE_SHA and RELEASE_CREATED"
+  release_labels=(
+    --label "org.opencontainers.image.source=https://github.com/OSS-TEST-GROUP/decision-ap"
+    --label "org.opencontainers.image.revision=${RELEASE_SOURCE_SHA}"
+    --label "org.opencontainers.image.ref.name=main"
+    --label "org.opencontainers.image.version=${RELEASE_SNAPSHOT_TAG}"
+    --label "org.opencontainers.image.created=${RELEASE_CREATED}"
+  )
+  release_build_options=(--provenance=false)
+fi
 docker buildx build --builder default --platform "${platform}" --load \
+  "${release_build_options[@]}" "${release_labels[@]}" \
   --build-arg "BRIDGE_IMAGE=${bridge_image}" --build-arg "PLANNING_IMAGE=${planning_image}" \
   -f "${repo_dir}/docker/images/Dockerfile.integrated" -t "${integrated_image}" "${repo_dir}"
 echo "Built ${integrated_image}"

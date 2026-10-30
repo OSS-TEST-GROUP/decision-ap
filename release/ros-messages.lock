@@ -1,0 +1,5 @@
+# Package name and full Git commit used by native release builds.
+autoware_adapi_msgs e62ea6fdb9ee50e49c7642c77e85250cb15b8e80
+autoware_internal_msgs 117bb2e8dba239e79a358e9be0dad9ac7b237de5
+autoware_msgs bbafc6c4410222de45df2d73e66678f80b1e28d4
+tier4_autoware_msgs e6d504b0bf4fc80d994a92fc7a783bdca11ac8d0

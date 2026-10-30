@@ -2,6 +2,8 @@
 
 Autoware의 Decision 파티션을 Adaptive AUTOSAR 기반으로 이식한 프로젝트다. Decision 앱(`ap-decision`)이 경로·행동·속도 planning을 수행해 최종 궤적을 생성하고, Service Creator가 ROS 2와 SOME/IP 서비스 간 통신을 연결한다. Decision 앱과 브리지 실행 환경을 하나의 통합 이미지로 구성하며, Perception·Control과 함께 각각 별도 컨테이너로 실행한다.
 
+릴리즈 태그와 Private GHCR 통합 이미지 발행 절차는 [Decision AP 태깅 및 릴리즈 규칙](release/README.md)을 따른다.
+
 
 ## 폴더 구조
 
@@ -38,6 +40,7 @@ decision-ap/
 │   ├── run/                         # 스택 공통 실행 로직
 │   ├── entrypoint/                  # 컨테이너 내부 초기화와 EM 시작
 │   └── tools/                       # 생성 헤더 준비·이미지 병합·진단 도구
+├── release/                         # 통합 이미지 태깅·GHCR 릴리즈 절차
 ├── sdk/                             # ../oss-ap/sdk에서 복사한 PARA SDK (Git 제외)
 ├── external/msgs/                   # ../oss-ap/oss-ap.repos로 가져온 메시지 소스 (Git 제외)
 ├── lib/                             # Lanelet2·planning 계산 의존 라이브러리
@@ -186,16 +189,16 @@ route는 `/planning/mission_planning/route`, 제어 궤적은 `/planning/scenari
 | 프로젝트·전체 파티션 | Decision AP | 저장소 `decision-ap` |
 | 실행 프로그램 | Decision 앱 | 실행 파일 `ap-decision`, AUTOSAR 앱 식별자 `DecisionAP` |
 | Decision 앱의 빌드 이미지 | Decision 앱 이미지 | 로컬 빌드 `decision-ap-planning:local` |
-| Decision 앱의 GHCR 패키지 | Decision 앱 릴리스 이미지 | `ghcr.io/oss-test-group/adsw-decision-ap:<버전>` (릴리스 예정) |
+| Decision AP의 GHCR 패키지 | 통합 실행 이미지 | `ghcr.io/oss-test-group/adsw-decision-ap:<버전>` |
 | 통신·앱 실행 기반 이미지 | 브리지 이미지 | `decision-ap-bridge:local` |
 | Decision 앱과 브리지를 합친 최종 이미지 | 통합 이미지 | `decision-ap-integrated:local` |
 | 최종 이미지로 시작하는 컨테이너 | Decision AP 컨테이너 | `adsw-decision-ap` |
 
 이미지 태그는 x86_64 기준이며 ARM64는 `:local-aarch64`를 사용한다. 브리지에는 Service Creator·OTAClient·EM·CM과 실행 환경이 포함된다. `DecisionAP`는 manifest·서비스 경로에 사용하는 내부 식별자다.
 
-GHCR에는 **Decision 앱 이미지만 `adsw-decision-ap` 패키지로 릴리스할 예정**이다. 이 패키지는 현재 로컬 빌드의 `decision-ap-planning` 이미지에 해당하며, Service Creator·OTAClient를 포함한 브리지 이미지와 통합 이미지는 배포 대상에 포함하지 않는다. 현재 빌드·실행 스크립트는 로컬에서 Decision 앱과 브리지를 빌드하고 통합하는 방식이다.
+GHCR에는 **통합 실행 이미지를 `adsw-decision-ap` private 패키지로 릴리스**한다. 브리지와 Decision 앱 이미지는 빌드 중간 산출물이다. 아키텍처별 staging 게시와 manifest 조립 절차는 [릴리스 문서](release/README.md)에 있다.
 
-현재 컨테이너 이름 `adsw-decision-ap`는 통합 이미지로 시작한 실행 인스턴스의 이름이다. 향후 같은 이름의 GHCR 패키지는 Decision 앱 이미지이므로, 패키지 내용과 컨테이너 구성을 구분한다.
+컨테이너 이름 `adsw-decision-ap`는 통합 이미지로 시작한 실행 인스턴스의 이름이다. 일반 빌드·실행 스크립트는 계속 로컬 이미지를 사용하며, 릴리스 이미지는 `INTEGRATED_IMAGE`로 명시해 실행한다.
 
 ## 범위와 기술 문서
 
