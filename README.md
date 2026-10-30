@@ -91,7 +91,7 @@ DECISION_IMAGE=ghcr.io/oss-test-group/adsw-decision-ap:v0.1.0
 
 ### 1.2. 이미지 구성 및 빌드 명령이 수행하는 작업
 
-이 저장소의 빌드 명령은 **Decision AP 실행에 필요한 브리지, Decision 앱, 통합 이미지**를 만든다. Perception과 Control은 GHCR에 배포된 릴리스 이미지를 사용한다.
+이 저장소의 빌드 명령은 **Decision AP 실행에 필요한 브리지+Decision 앱, 통합 이미지**를 만든다. Perception과 Control은 GHCR에 배포된 릴리스 이미지를 사용한다.
 
 | 구성 | 이미지 설명 | 준비 방법 | 이미지 태그 또는 배포 위치 |
 | --- | --- | --- | --- |
@@ -108,21 +108,25 @@ flowchart TB
     subgraph build["이미지 빌드"]
         source["외부 oss-ap + 이 저장소의 변경 사항"] --> bridge["브리지 이미지<br/>Service Creator · OTAClient<br/>EM · CM · PARA · ROS 2"]
         planning["Decision AP 소스"] --> app["Decision 앱 이미지<br/>ap-decision · manifest · Lanelet"]
-        bridge --> integrated["Decision AP 통합 이미지"]
+        bridge --> integrated["로컬 Decision AP 통합 이미지"]
         app --> integrated
     end
 
     subgraph run["스택 실행"]
-        ghcr["GHCR 릴리스 이미지"] --> perception["Perception 컨테이너<br/>adsw-perception"]
-        ghcr --> control["Control 컨테이너<br/>adsw-control"]
-        integrated --> decision["Decision AP 컨테이너<br/>adsw-decision-ap"]
+        ghcr_partitions["GHCR Perception·Control 이미지"] --> perception["Perception 컨테이너<br/>adsw-perception"]
+        ghcr_partitions --> control["Control 컨테이너<br/>adsw-control"]
+        integrated -->|"로컬 빌드 이미지 사용"| decision["Decision AP 컨테이너<br/>adsw-decision-ap"]
+        ghcr_decision["GHCR Decision AP 통합 이미지<br/>adsw-decision-ap:v0.1.0"] -->|"이미지 pull 후 사용 OR"| decision
         perception -->|"ROS 2 입력"| decision
         decision -->|"planning 궤적 · ROS 2"| control
     end
 ```
-### 빌드시 팝콘사 'oss-ap' 참조
 
-기본 외부 저장소는 이 저장소 밖의 `../oss-ap/`이며, 없으면 빌드 스크립트가 복제한다. 빌드 시 `oss-ap`를 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. `OSS_AP_SOURCE`로 다른 위치를 지정할 수 있다.
+### 직접 빌드 시 외부 의존성: `oss-ap`
+
+이미지를 직접 빌드할 때 팝콘사의 `oss-ap`에서 PARA SDK, `Ecu_Machine` 기반 소스, ROS 2 메시지 저장소 목록(`oss-ap.repos`)을 가져온다. GHCR 통합 이미지를 받아 실행할 때는 이 빌드 입력이 필요하지 않다.
+
+`oss-ap`의 기본 위치는 이 저장소 밖의 `../oss-ap/`다. 없으면 빌드 스크립트가 복제하고, 빌드 시 커밋 `2f649badb4a63e47e7df89c5b5b1675a70fa6ad5`로 맞춘다. 다른 위치를 사용하려면 `OSS_AP_SOURCE`를 지정한다.
 
 | 항목 | 실제 출처와 사용 방식 | 이 저장소의 Git |
 | --- | --- | --- |
@@ -146,26 +150,7 @@ Perception·Control은 위 표의 GHCR 이미지를 직접 사용하며, 로컬�
 
 스택은 기본적으로 `ROS_DOMAIN_ID=42`, planning 시뮬레이션 모드 `PLANNING_AA_SIMULATION=1`로 실행된다. 실행 터미널에서 `Ctrl+C`를 누르면 스택이 종료되고 로그는 남는다.
 
-### 1.4. ARM64 보드와 외부 PC RViz
-
-1.1절에 따라 보드에서 `BOARD_LAN_INTERFACE`를 설정하고, 외부 PC에서 `PC_LAN_INTERFACE`를 설정한다. 보드에서는 다음 명령으로 스택을 시작한다.
-
-```sh
-KATECH_NETWORK_INTERFACE="$BOARD_LAN_INTERFACE" ./docker/run-arm64-board.sh
-```
-
-보드는 host 네트워크를 사용하며 RViz 창을 열지 않는다. 외부 PC에는 Docker, X11 데스크톱, x86_64 Perception 이미지가 필요하다. RViz 스크립트의 기본 이미지는 `ghcr.io/oss-test-group/adsw-perception:latest`이므로 아래처럼 이미지를 내려받은 뒤 실행한다. 별도의 로컬 태그나 `KATECH_RVIZ_IMAGE` 지정은 필요하지 않다.
-
-```sh
-docker pull --platform linux/amd64 ghcr.io/oss-test-group/adsw-perception:latest
-KATECH_NETWORK_INTERFACE="$PC_LAN_INTERFACE" ./docker/run-remote-rviz.sh
-```
-
-보드와 PC의 `ROS_DOMAIN_ID`를 같게 설정한다. RViz에서 map·TF·route·trajectory가 보이지 않으면 양쪽 인터페이스 설정과 LAN의 UDP multicast·방화벽을 확인한다. 외부 PC에서 ROS 2나 Autoware를 별도로 빌드할 필요는 없다.
-
 ## 2. RViz 설정과 경로 요청
-
-x86_64 PC 실행과 QEMU 실행은 PC의 `DISPLAY` 및 X11 소켓 `/tmp/.X11-unix`가 필요하다. 외부 PC RViz도 X11 데스크톱 터미널에서 시작한다. RViz 실행 파일과 기본 화면 구성은 Perception 이미지에 포함돼 있다. RViz의 Fixed Frame은 `map`으로 설정한다.
 
 1. 지도와 TF가 표시될 때까지 기다린다.
 2. `2D Pose Estimate`로 차량 초기 위치와 방향을 지정한다. 샘플 시뮬레이터의 `waiting initialization...` 상태는 유효한 초기 위치를 입력해야 끝난다.
