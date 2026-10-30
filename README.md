@@ -2,7 +2,7 @@
 
 Autoware의 Decision 파티션을 Adaptive AUTOSAR 기반으로 이식한 프로젝트다. Decision 앱(`ap-decision`)이 경로·행동·속도 planning을 수행해 최종 궤적을 생성하고, Service Creator가 ROS 2와 SOME/IP 서비스 간 통신을 연결한다. Decision 앱과 브리지 실행 환경을 하나의 통합 이미지로 구성하며, Perception·Control과 함께 각각 별도 컨테이너로 실행한다.
 
-릴리즈 태그와 Private GHCR 통합 이미지 발행 절차는 [Decision AP 태깅 및 릴리즈 규칙](release/README.md)을 따른다.
+릴리즈 태그와 Internal GHCR 통합 이미지 발행 절차는 [Decision AP 태깅 및 릴리즈 규칙](release/README.md)을 따른다.
 
 
 ## 폴더 구조
@@ -51,19 +51,45 @@ decision-ap/
 └── output/                          # 실행 로그 등 산출물 (Git 제외)
 ```
 
-## 1. 아키텍처별 빌드와 실행
+## 1. 이미지 준비와 실행
 
-| 실행 위치 | 이미지 빌드 | 스택 실행 | RViz | 외부 x86_64 PC에서 실행 |
+### 1.1. 실행 위치별 이미지 준비와 실행
+
+#### 1.1.1. GHCR 릴리즈 Decision 이미지를 사용할 때
+
+`adsw-decision-ap`은 Internal 패키지다. 패키지 읽기 권한이 있는 GitHub 계정으로 personal access token (classic)을 만들고 `read:packages` 권한을 부여한다. 조직에서 SSO를 요구하면 토큰에도 SSO 접근을 승인한다. 이미지를 받을 장비마다 다음 명령으로 로그인한다. `YOUR_GITHUB_USER`는 본인 GitHub 사용자 이름으로 바꾼다. ([GitHub의 GHCR 인증 안내](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry#authenticating-to-the-container-registry))
+
+```bash
+read -r -s -p 'GHCR token: ' GHCR_TOKEN; echo
+printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u YOUR_GITHUB_USER --password-stdin
+unset GHCR_TOKEN
+```
+
+같은 터미널에서 이미지 변수를 설정한 뒤 아래 표의 명령을 실행한다.
+
+```bash
+DECISION_IMAGE=ghcr.io/oss-test-group/adsw-decision-ap:v0.1.0
+```
+
+| 실행 위치 | 통합 이미지 받기 | 스택 실행 | RViz | 외부 x86_64 PC에서 실행 |
+| --- | --- | --- | --- | --- |
+| x86_64 PC | `docker pull --platform linux/amd64 "$DECISION_IMAGE"` | `INTEGRATED_IMAGE="$DECISION_IMAGE" ./docker/run-x86.sh` | Perception 컨테이너에서 PC 화면에 표시 | 필요 없음 |
+| ARM64 보드 | `docker pull --platform linux/arm64 "$DECISION_IMAGE"` | `KATECH_NETWORK_INTERFACE="$BOARD_LAN_INTERFACE" INTEGRATED_IMAGE="$DECISION_IMAGE" ./docker/run-arm64-board.sh` | 외부 x86_64 PC에서 별도 실행 | `KATECH_NETWORK_INTERFACE="$PC_LAN_INTERFACE" ./docker/run-remote-rviz.sh` |
+| x86_64 PC에서 ARM64 QEMU 시험 | `docker pull --platform linux/arm64 "$DECISION_IMAGE"` | `INTEGRATED_IMAGE="$DECISION_IMAGE" ./docker/run-arm64-qemu.sh` | ARM64 Perception 컨테이너에서 PC 화면에 표시 | 필요 없음 |
+
+보드의 이름이 `eth0`이면 `BOARD_LAN_INTERFACE=eth0`으로 설정한다. PC에서는 `PC_LAN_INTERFACE`만 설정하면 된다.
+
+#### 1.1.2. Decision 이미지를 직접 빌드할 때
+
+| 실행 위치 | 통합 이미지 빌드 | 스택 실행 | RViz | 외부 x86_64 PC에서 실행 |
 | --- | --- | --- | --- | --- |
 | x86_64 PC | `./docker/build-x86.sh` | `./docker/run-x86.sh` | Perception 컨테이너에서 PC 화면에 표시 | 필요 없음 |
-| ARM64 보드 | `./docker/build-arm64.sh` | `KATECH_NETWORK_INTERFACE=<보드_LAN_인터페이스> ./docker/run-arm64-board.sh` | 외부 x86_64 PC에서 별도 실행 | `KATECH_NETWORK_INTERFACE=<PC_LAN_인터페이스> ./docker/run-remote-rviz.sh` |
+| ARM64 보드 | `./docker/build-arm64.sh` | `KATECH_NETWORK_INTERFACE="$BOARD_LAN_INTERFACE" ./docker/run-arm64-board.sh` | 외부 x86_64 PC에서 별도 실행 | `KATECH_NETWORK_INTERFACE="$PC_LAN_INTERFACE" ./docker/run-remote-rviz.sh` |
 | x86_64 PC에서 ARM64 QEMU 시험 | `./docker/build-arm64.sh` | `./docker/run-arm64-qemu.sh` | ARM64 Perception 컨테이너에서 PC 화면에 표시 | 필요 없음 |
 
-`<보드_LAN_인터페이스>`와 `<PC_LAN_인터페이스>`는 설명용 자리표시자이므로, 실행 전에 꺾쇠괄호를 포함한 전체를 각 장비의 실제 인터페이스 이름으로 바꾼다. ARM64 보드에서 실행할 때는 보드와 외부 PC를 같은 LAN에 연결하고, **외부 PC에서도 RViz 스크립트를 실행해야 한다.**
+보드의 이름이 `eth0`이면 `BOARD_LAN_INTERFACE=eth0`으로 설정한다. PC에서는 `PC_LAN_INTERFACE`만 설정하면 된다.
 
-x86_64 PC에서 ARM64 이미지를 빌드·실행하려면 x86_64와 ARM64 PARA SDK 및 Docker의 ARM64 binfmt/QEMU 지원이 필요하다. 이 빌드는 브리지를 ARM64 sysroot로 크로스 컴파일하고 Decision 앱을 QEMU에서 빌드한다. `BRIDGE_BUILD_MODE=native`를 지정하면 브리지도 QEMU에서 빌드한다.
-
-### 1.1. 이미지 구성 및 빌드 명령이 수행하는 작업
+### 1.2. 이미지 구성 및 빌드 명령이 수행하는 작업
 
 이 저장소의 빌드 명령은 **Decision AP 실행에 필요한 브리지, Decision 앱, 통합 이미지**를 만든다. Perception과 Control은 GHCR에 배포된 릴리스 이미지를 사용한다.
 
@@ -106,7 +132,7 @@ flowchart TB
 | `oss-ap/src/Ecu_Machine/` | 외부 `oss-ap` 작업 트리에서 Docker 빌드 입력으로 사용 | 제외|
 | `overrides/Ecu_Machine/`, `overrides/generated/` | oss-ap 원본과 다른 수정 파일 및 원본에 없는 생성 헤더만 보관 | 저장소에서 추적 |
 
-### 1.2. 실행 명령이 수행하는 작업
+### 1.3. 실행 명령이 수행하는 작업
 
 `./docker/run-x86.sh`, `./docker/run-arm64-board.sh`, `./docker/run-arm64-qemu.sh`는 아키텍처와 네트워크·RViz 설정을 선택하고, 공통 실행 스크립트가 다음 세 컨테이너를 시작한다.
 
@@ -114,25 +140,25 @@ flowchart TB
 | --- | --- | --- |
 | `adsw-perception` | GHCR Perception 릴리스 이미지 | `sample_adsw_perception_run.launch.xml`로 지도·인지·샘플 시뮬레이션 구성 실행. PC·QEMU 모드에서는 RViz도 실행 |
 | `adsw-control` | GHCR Control 릴리스 이미지 | `sample_adsw_control_run.launch.xml`로 제어 및 System 구성 실행 |
-| `adsw-decision-ap` | 로컬에서 빌드한 Decision AP 통합 이미지 | entrypoint가 실행 환경을 준비하고 EM을 시작. EM이 CM·Service Creator·OTAClient·Decision 앱을 실행 |
+| `adsw-decision-ap` | 로컬 빌드 또는 GHCR에서 받은 Decision AP 통합 이미지 | entrypoint가 실행 환경을 준비하고 EM을 시작. EM이 CM·Service Creator·OTAClient·Decision 앱을 실행 |
 
-Perception·Control은 위 표의 GHCR 이미지를 직접 사용하며, 로컬에 없을 때만 대상 아키텍처로 내려받는다. 다른 이미지는 `KATECH_PERCEPTION_IMAGE`와 `KATECH_CONTROL_IMAGE`로 지정하고 직접 준비한다. Decision AP 통합 이미지는 실행 전에 빌드해야 한다.
+Perception·Control은 위 표의 GHCR 이미지를 직접 사용하며, 로컬에 없을 때만 대상 아키텍처로 내려받는다. 다른 이미지는 `KATECH_PERCEPTION_IMAGE`와 `KATECH_CONTROL_IMAGE`로 지정하고 직접 준비한다. Decision AP 통합 이미지는 로컬에서 빌드하거나 1.1.1절에 따라 GHCR에서 받아 실행한다.
 
 스택은 기본적으로 `ROS_DOMAIN_ID=42`, planning 시뮬레이션 모드 `PLANNING_AA_SIMULATION=1`로 실행된다. 실행 터미널에서 `Ctrl+C`를 누르면 스택이 종료되고 로그는 남는다.
 
-### 1.3. ARM64 보드와 외부 PC RViz
+### 1.4. ARM64 보드와 외부 PC RViz
 
-보드와 x86_64 PC를 서로 통신 가능한 같은 LAN에 연결한다. 각 장비에서 `ip -br address`로 LAN 인터페이스를 확인하고, 아래 명령의 자리표시자를 꺾쇠괄호까지 포함해 실제 이름으로 바꾼 뒤 실행한다. 보드에서는 다음 명령으로 스택을 시작한다.
+1.1절에 따라 보드에서 `BOARD_LAN_INTERFACE`를 설정하고, 외부 PC에서 `PC_LAN_INTERFACE`를 설정한다. 보드에서는 다음 명령으로 스택을 시작한다.
 
 ```sh
-KATECH_NETWORK_INTERFACE=<보드_LAN_인터페이스> ./docker/run-arm64-board.sh
+KATECH_NETWORK_INTERFACE="$BOARD_LAN_INTERFACE" ./docker/run-arm64-board.sh
 ```
 
 보드는 host 네트워크를 사용하며 RViz 창을 열지 않는다. 외부 PC에는 Docker, X11 데스크톱, x86_64 Perception 이미지가 필요하다. RViz 스크립트의 기본 이미지는 `ghcr.io/oss-test-group/adsw-perception:latest`이므로 아래처럼 이미지를 내려받은 뒤 실행한다. 별도의 로컬 태그나 `KATECH_RVIZ_IMAGE` 지정은 필요하지 않다.
 
 ```sh
 docker pull --platform linux/amd64 ghcr.io/oss-test-group/adsw-perception:latest
-KATECH_NETWORK_INTERFACE=<PC_LAN_인터페이스> ./docker/run-remote-rviz.sh
+KATECH_NETWORK_INTERFACE="$PC_LAN_INTERFACE" ./docker/run-remote-rviz.sh
 ```
 
 보드와 PC의 `ROS_DOMAIN_ID`를 같게 설정한다. RViz에서 map·TF·route·trajectory가 보이지 않으면 양쪽 인터페이스 설정과 LAN의 UDP multicast·방화벽을 확인한다. 외부 PC에서 ROS 2나 Autoware를 별도로 빌드할 필요는 없다.
@@ -196,7 +222,7 @@ route는 `/planning/mission_planning/route`, 제어 궤적은 `/planning/scenari
 
 이미지 태그는 x86_64 기준이며 ARM64는 `:local-aarch64`를 사용한다. 브리지에는 Service Creator·OTAClient·EM·CM과 실행 환경이 포함된다. `DecisionAP`는 manifest·서비스 경로에 사용하는 내부 식별자다.
 
-GHCR에는 **통합 실행 이미지를 `adsw-decision-ap` private 패키지로 릴리스**한다. 브리지와 Decision 앱 이미지는 빌드 중간 산출물이다. 아키텍처별 staging 게시와 manifest 조립 절차는 [릴리스 문서](release/README.md)에 있다.
+GHCR에는 **통합 실행 이미지를 `adsw-decision-ap` Internal 패키지로 릴리스**한다. 브리지와 Decision 앱 이미지는 빌드 중간 산출물이다. 아키텍처별 staging 게시와 manifest 조립 절차는 [릴리스 문서](release/README.md)에 있다.
 
 컨테이너 이름 `adsw-decision-ap`는 통합 이미지로 시작한 실행 인스턴스의 이름이다. 일반 빌드·실행 스크립트는 계속 로컬 이미지를 사용하며, 릴리스 이미지는 `INTEGRATED_IMAGE`로 명시해 실행한다.
 

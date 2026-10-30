@@ -4,7 +4,7 @@
 
 - 소스 정본: `https://github.com/OSS-TEST-GROUP/decision-ap`
 - 기본 브랜치: `main`
-- 컨테이너 정본: GitHub Container Registry(GHCR)의 **Private** 패키지
+- 컨테이너 정본: GitHub Container Registry(GHCR)의 **Internal** 패키지
 - 대상 이미지: `ghcr.io/oss-test-group/adsw-decision-ap` (브리지와 Decision 앱을 합친 통합 실행 이미지)
 - 대상 플랫폼: `linux/amd64`, `linux/arm64`
 
@@ -76,7 +76,7 @@ unset GHCR_TOKEN
 
 스크립트는 호스트 아키텍처에 따라 `<snapshot>-amd64` 또는 `<snapshot>-arm64`를 push한다. 이미지에는 `revision`, `ref.name`, `created`, `version`, `source` OCI 라벨과 `para.sdk.version` 라벨이 포함된다. 기존 staging 태그는 이미지 config digest가 같을 때만 재사용한다.
 
-최초 staging 게시 후 조직 패키지 설정에서 `adsw-decision-ap`가 **Private**인지 확인한다. 같은 설정에서 `decision-ap` 저장소에 **Manage Actions access: Write**를 부여해야 아래 workflow의 `GITHUB_TOKEN`이 패키지를 갱신할 수 있다. GitHub의 `production` environment에는 필요한 승인 규칙을 설정한다.
+최초 staging 게시 후 조직 패키지 설정에서 `adsw-decision-ap`가 **Internal**인지 확인한다. 같은 설정에서 `decision-ap` 저장소에 **Manage Actions access: Write**를 부여해야 아래 workflow의 `GITHUB_TOKEN`이 패키지를 갱신할 수 있다. GitHub의 `production` environment에는 필요한 승인 규칙을 설정한다.
 
 ### 5.3 Git 태그와 최종 manifest 발행
 
@@ -102,7 +102,7 @@ GitHub Actions의 **Publish verified Decision AP integrated image** workflow를 
 
 ## 6. 배포 확인
 
-Private 패키지를 pull하는 장비마다 읽기 권한과 GHCR 인증이 필요하다.
+Internal 패키지를 pull하는 장비마다 읽기 권한과 GHCR 인증이 필요하다. 로그인과 PC·보드별 실행 명령은 [루트 README의 1.1절](../README.md#11-실행-위치별-이미지-준비와-실행)에 있다.
 
 ```bash
 docker buildx imagetools inspect \
@@ -113,7 +113,7 @@ INTEGRATED_IMAGE=ghcr.io/oss-test-group/adsw-decision-ap:v0.1.0 \
   ./docker/run-x86.sh
 ```
 
-ARM64 장비에서는 같은 버전 태그를 `linux/arm64`로 pull한 뒤 `INTEGRATED_IMAGE=ghcr.io/oss-test-group/adsw-decision-ap:v0.1.0 ./docker/run-arm64-board.sh`로 확인한다. 검증한 이미지 digest, BSP·PC 아키텍처, Lane Driving 결과를 배포 기록에 남긴다.
+ARM64 장비에서는 같은 버전 태그를 `linux/arm64`로 pull하고, 보드의 `KATECH_NETWORK_INTERFACE`를 설정해 [루트 README의 ARM64 명령](../README.md#11-실행-위치별-이미지-준비와-실행)으로 실행한다. 검증한 이미지 digest, BSP·PC 아키텍처, Lane Driving 결과를 배포 기록에 남긴다.
 
 ## 7. 금지 사항
 
